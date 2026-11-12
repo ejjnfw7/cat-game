@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>ねこお世話ゲーム - BGM付き</title>
+<style>
+  body {
+    font-family: sans-serif;
+    background-color: #fff5f7;
+    color: #4a3b3c;
+    text-align: center;
+    margin: 0;
+    padding: 15px;
+    touch-action: manipulation;
+    overflow-x: hidden;
+  }
+  h1 { font-size: 20px; margin: 5px 0 10px 0; }
+  p { font-size: 13px; color: #7a6668; margin: 5px 0; }
+
+  /* BGM切り替えボタン（画面の右上などに固定もできるよ） */
+  .bgm-bar {
+    background: #ffe4e6;
+    border-radius: 20px;
+    padding: 6px 15px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    font-size: 12px;
+    font-weight: bold;
+    color: #b83b5e;
+    cursor: pointer;
+  }
+
+  /* 1. 猫を選ぶ画面 */
+  .cat-list {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 15px;
+  }
+  .cat-card {
+    background: white;
+    border: 3px solid #ffd1dc;
+    border-radius: 16px;
+    padding: 8px;
+    width: 90px;
+    cursor: pointer;
+  }
+  .cat-card.selected {
+    border-color: #ff758c;
+    background-color: #ffeef2;
+  }
+  .cat-card img { width: 70px; height: 70px; object-fit: contain; }
+  .cat-name-label { font-weight: bold; margin-top: 4px; font-size: 12px; }
+  
+  .name-input {
+    margin-top: 10px; padding: 8px; font-size: 14px;
+    border: 2px solid #ffd1dc; border-radius: 10px; width: 75%; max-width: 240px; text-align: center;
+  }
+  .start-btn {
+    background: #ffb6c1; color: white; border: none; padding: 10px 24px;
+    border-radius: 20px; font-weight: bold; font-size: 14px; margin-top: 12px;
+    display: inline-block; box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+  }
+
+  /* 各画面の切り替え */
+  #game-screen, #gameover-screen, #room-screen { display: none; }
+
+  /* 2. 野良猫期（見極め画面） */
+  .cat-container {
+    position: relative; width: 150px; height: 150px; margin: 10px auto;
+  }
+  #cat-img { width: 100%; height: 100%; object-fit: contain; }
+  .happy { animation: jump 0.35s infinite alternate; }
+  .angry { animation: shake 0.1s infinite; filter: hue-rotate(300deg); }
+
+  @keyframes jump { from { transform: translateY(0); } to { transform: translateY(-10px); } }
+  @keyframes shake { 0% { transform: translateX(-3px); } 100% { transform: translateX(3px); } }
+
+  .gauge-box {
+    background: #ffe4e6; border-radius: 12px; padding: 8px; margin: 8px auto; width: 88%; max-width: 320px;
+  }
+  .choice-box {
+    background: white; border: 2px dashed #ffb6c1; border-radius: 12px; padding: 12px; margin-top: 10px;
+  }
+  .choice-btns {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px;
+  }
+  .choice-btn {
+    background: #ff758c; color: white; border: none; padding: 10px;
+    border-radius: 10px; font-weight: bold; font-size: 12px;
+  }
+
+  /* 4. お部屋モード */
+  #room-area {
+    position: relative;
+    width: 100%;
+    max-width: 380px;
+    height: 300px;
+    margin: 10px auto;
+    border-radius: 18px;
+    border: 3px solid #ffd1dc;
+    background-image: url('room.png'), linear-gradient(to bottom, #fdfbfb 0%, #ebedee 70%, #e6ccb2 70%, #ddb892 100%);
+    background-size: cover;
+    background-position: center;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  }
+
+  .room-cat-slot {
+    position: absolute;
+    bottom: 20px;
+    width: 105px;
+    text-align: center;
+    transition: transform 0.2s;
+  }
+  .room-cat-slot img {
+    width: 95px;
+    height: 95px;
+    object-fit: contain;
+    pointer-events: none;
+  }
+  .room-cat-tag {
+    background: rgba(255, 255, 255, 0.85);
+    border-radius: 10px;
+    padding: 2px 6px;
+    font-size: 11px;
+    font-weight: bold;
+    display: inline-block;
+  }
+
+  .item-tray {
+    background: white;
+    border: 2px solid #ffd1dc;
+    border-radius: 14px;
+    padding: 10px;
+    margin: 10px auto;
+    max-width: 360px;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+  }
+  .drag-item-box {
+    width: 75px;
+    height: 75px;
+    background: #fff5f7;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    touch-action: none;
+    user-select: none;
+  }
+  .drag-item-img {
+    width: 50px;
+    height: 50px;
+    object-fit: contain;
+    touch-action: none;
+  }
+  .drag-label {
+    font-size: 11px;
+    font-weight: bold;
+    margin-top: 2px;
+  }
+
+  #dragging-ghost {
+    position: fixed;
+    width: 65px;
+    height: 65px;
+    object-fit: contain;
+    pointer-events: none;
+    z-index: 9999;
+    display: none;
+    transform: translate(-50%, -50%);
+  }
+</style>
+</head>
+<body>
+
+  <!-- BGM用の音楽プレイヤー（画面には映らない見えないプレイヤー） -->
+  <audio id="bgm-player" src="bgm.mp3" loop preload="auto"></audio>
+
+  <!-- 指で引っ張っている最中のアイテム -->
+  <img id="dragging-ghost" src="" alt="">
+
+  <!-- BGMコントロール用バー -->
+  <div class="bgm-bar" onclick="toggleBGM()">
+    <span id="bgm-icon">🔇</span> <span id="bgm-text">BGM：OFF（タップして再生）</span>
+  </div>
+
+  <!-- 1. 猫を選ぶ画面 -->
+  <div id="select-screen">
+    <h1 id="select-header">野良猫の心を開こう</h1>
+    <p id="select-sub">仲良くなりたい子をえらんでね</p>
+
+    <div class="cat-list">
+      <div class="cat-card selected" id="card-white" onclick="selectBreed('白猫', 'white.png', this)"><img src="white.png"><div class="cat-name-label">白猫</div></div>
+      <div class="cat-card" id="card-black" onclick="selectBreed('黒猫', 'black.png', this)"><img src="black.png"><div class="cat-name-label">黒猫</div></div>
+      <div class="cat-card" id="card-calico" onclick="selectBreed('三毛猫', 'calico.png', this)"><img src="calico.png"><div class="cat-name-label">三毛猫</div></div>
+      <div class="cat-card" id="card-brown" onclick="selectBreed('茶トラ', 'brown.png', this)"><img src="brown.png"><div class="cat-name-label">茶トラ</div></div>
+      <div class="cat-card" id="card-gray" onclick="selectBreed('灰猫', 'gray.png', this)"><img src="gray.png"><div class="cat-name-label">灰猫</div></div>
+    </div>
+
+    <div style="margin-top: 12px;">
+      <p>猫の名前をきめる</p>
+      <input type="text" id="cat-name-input" class="name-input" value="ハル">
+      <br>
+      <button class="start-btn" onclick="startGame()">お世話をはじめる</button>
+      <button class="start-btn" id="back-to-room-btn" style="display:none; background:#66bb6a;" onclick="showRoomScreen()">お部屋に戻る</button>
+    </div>
+  </div>
+
+  <!-- 2. メインゲーム画面（野良猫期） -->
+  <div id="game-screen">
+    <h2 id="display-title" style="font-size:17px; margin:5px 0;">〇〇との距離</h2>
+    
+    <div class="gauge-box">
+      <p id="mood-text" style="margin:0; font-weight:bold; font-size:15px;">好感度： 50 / 100</p>
+      <p id="status-message" style="margin:3px 0 0 0; font-size:12px; color:#c7516d;">警戒している…</p>
+    </div>
+
+    <div class="cat-container">
+      <img id="cat-img" src="" alt="猫">
+    </div>
+
+    <div class="choice-box">
+      <p id="cat-demand" style="margin:0 0 8px 0; font-weight:bold; font-size:13px; color:#b83b5e;">「……ジッ」</p>
+      <div class="choice-btns">
+        <button class="choice-btn" onclick="chooseAction('feed')">🐟 高級カリカリをあげる</button>
+        <button class="choice-btn" onclick="chooseAction('pet')">✋ 優しくなでる</button>
+        <button class="choice-btn" onclick="chooseAction('toy')">🧶 おもちゃで遊ぶ</button>
+        <button class="choice-btn" onclick="chooseAction('leave')">👀 そっとしておく</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. バッドエンド画面 -->
+  <div id="gameover-screen">
+    <h1 style="color: #d32f2f;" id="over-title">💔 嫌われてしまった…</h1>
+    <p id="gameover-text">不機嫌にさせすぎて、完全に心を閉ざされて逃げられてしまった。</p>
+    <div class="cat-container"><img id="over-img" src="" style="filter: grayscale(80%);"></div>
+    <button class="start-btn" onclick="fullReset()" style="background:#d32f2f;">最初からやり直す</button>
+  </div>
+
+  <!-- 4. お部屋モード -->
+  <div id="room-screen">
+    <h1 style="color: #2e7d32; margin-bottom:2px;">🏡 みんなのお部屋（<span id="cat-count">1</span>/3匹）</h1>
+    <p id="room-comment" style="font-weight:bold; color:#2e7d32; min-height:20px;">下のアイテムを指で猫まで運んで遊ぼう！</p>
+
+    <div id="room-area"></div>
+
+    <div class="item-tray">
+      <div class="drag-item-box" data-type="dish" data-img="dish.png">
+        <img src="dish.png" class="drag-item-img" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2280%22>🥣</text></svg>'">
+        <span class="drag-label">お皿</span>
+      </div>
+      <div class="drag-item-box" data-type="fish" data-img="fish.png">
+        <img src="fish.png" class="drag-item-img" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2280%22>🐟</text></svg>'">
+        <span class="drag-label">お魚</span>
+      </div>
+      <div class="drag-item-box" data-type="toy" data-img="toy.png">
+        <img src="toy.png" class="drag-item-img" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2280%22>🧶</text></svg>'">
+        <span class="drag-label">おもちゃ</span>
+      </div>
+    </div>
+
+    <button class="start-btn" id="add-cat-btn" style="background:#ff758c;" onclick="goAdoptMore()">＋ 新しい猫をお迎えする（あと2匹）</button>
+    <br>
+    <button style="background:none; border:none; color:#a87b80; text-decoration:underline; font-size:11px; margin-top:10px;" onclick="fullReset()">データを消して最初から</button>
+  </div>
+
+<script>
+  let selectedBreed = '白猫';
+  let imageFile = 'white.png';
+  let catName = 'ハル';
+  let affinity = 50;
+  let currentDemand = '';
+  let isRoomMode = false;
+  let adoptedCats = [];
+
+  let isBgmPlaying = false;
+
+  // BGMのオン/オフを切り替える関数
+  function toggleBGM() {
+    const bgm = document.getElementById('bgm-player');
+    const icon = document.getElementById('bgm-icon');
+    const text = document.getElementById('bgm-text');
+
+    if (isBgmPlaying) {
+      bgm.pause();
+      isBgmPlaying = false;
+      icon.textContent = '🔇';
+      text.textContent = 'BGM：OFF（タップして再生）';
+    } else {
+      bgm.play().then(() => {
+        isBgmPlaying = true;
+        icon.textContent = '🎵';
+        text.textContent = 'BGM：ON（再生中）';
+      }).catch(e => {
+        alert('bgm.mp3 ファイルが見つからないか、読み込めませんでした。フォルダにファイルがあるか確認してね！');
+      });
+    }
+  }
+
+  function selectBreed(breed, file, cardEl) {
+    selectedBreed = breed;
+    imageFile = file;
+    document.querySelectorAll('.cat-card').forEach(c => c.classList.remove('selected'));
+    cardEl.classList.add('selected');
+  }
+
+  function startGame() {
+    const inputVal = document.getElementById('cat-name-input').value;
+    if (inputVal.trim() !== "") catName = inputVal;
+    
+    document.getElementById('select-screen').style.display = 'none';
+    document.getElementById('gameover-screen').style.display = 'none';
+    document.getElementById('room-screen').style.display = 'none';
+    document.getElementById('game-screen').style.display = 'block';
+    
+    document.getElementById('display-title').textContent = catName + ' との距離感';
+    document.getElementById('cat-img').src = imageFile;
+    
+    affinity = 50;
+    isRoomMode = false;
+    nextDemand();
+    updateGame();
+  }
+
+  const demands = [
+    { text: "お腹がペコペコみたいだ…", correct: "feed" },
+    { text: "退屈そうに尻尾を振っている！", correct: "toy" },
+    { text: "甘えたい気分ですり寄ってきた", correct: "pet" },
+    { text: "なんだか機嫌が悪くて怒っている…", correct: "leave" }
+  ];
+
+  function nextDemand() {
+    let rand = Math.floor(Math.random() * demands.length);
+    currentDemand = demands[rand];
+    document.getElementById('cat-demand').textContent = '「' + currentDemand.text + '」';
+  }
+
+  function chooseAction(action) {
+    if (action === currentDemand.correct) {
+      affinity += 15;
+      alert(catName + 'は大喜びした！（好感度アップ↑）');
+    } else {
+      affinity -= 18;
+      alert(catName + 'は機嫌を損ねてしまった…！（好感度ダウン↓）');
+    }
+
+    if (affinity >= 100) {
+      adoptedCats.push({ name: catName, breed: selectedBreed, img: imageFile });
+      alert('やったね！' + catName + 'がお部屋に来てくれたよ！');
+      showRoomScreen();
+      return;
+    }
+
+    if (affinity <= 0) {
+      document.getElementById('game-screen').style.display = 'none';
+      document.getElementById('gameover-screen').style.display = 'block';
+      document.getElementById('over-title').textContent = '💔 ' + catName + 'に嫌われてしまった…';
+      document.getElementById('over-text').textContent = '何度も機嫌を損ねたため、' + catName + 'はどこかへ去ってしまった……。';
+      document.getElementById('over-img').src = imageFile;
+      return;
+    }
+
+    nextDemand();
+    updateGame();
+  }
+
+  function showRoomScreen() {
+    isRoomMode = true;
+    document.getElementById('select-screen').style.display = 'none';
+    document.getElementById('game-screen').style.display = 'none';
+    document.getElementById('room-screen').style.display = 'block';
+
+    document.getElementById('cat-count').textContent = adoptedCats.length;
+    const roomArea = document.getElementById('room-area');
+    roomArea.innerHTML = '';
+
+    const positions = ['5%', '36%', '67%'];
+
+    adoptedCats.forEach((cat, index) => {
+      const slot = document.createElement('div');
+      slot.className = 'room-cat-slot happy';
+      slot.style.left = positions[index];
+      slot.dataset.catName = cat.name;
+      slot.innerHTML = `
+        <img src="${cat.img}" alt="${cat.name}">
+        <div class="room-cat-tag">${cat.name}</div>
+      `;
+      roomArea.appendChild(slot);
+    });
+
+    const addBtn = document.getElementById('add-cat-btn');
+    if (adoptedCats.length < 3) {
+      addBtn.style.display = 'inline-block';
+      addBtn.textContent = `＋ 新しい猫をお迎えする（あと${3 - adoptedCats.length}匹）`;
+    } else {
+      addBtn.style.display = 'none';
+    }
+  }
+
+  function goAdoptMore() {
+    isRoomMode = false;
+    document.getElementById('room-screen').style.display = 'none';
+    document.getElementById('select-screen').style.display = 'block';
+    document.getElementById('select-header').textContent = (adoptedCats.length + 1) + '匹目の猫をお迎えしよう！';
+    document.getElementById('cat-name-input').value = '';
+    document.getElementById('back-to-room-btn').style.display = 'inline-block';
+  }
+
+  const ghost = document.getElementById('dragging-ghost');
+  let activeItemType = null;
+
+  document.querySelectorAll('.drag-item-box').forEach(box => {
+    box.addEventListener('touchstart', function(e) {
+      e.preventDefault();
+      activeItemType = this.dataset.type;
+      const imgEl = this.querySelector('img');
+      ghost.src = imgEl.src;
+      ghost.style.display = 'block';
+      moveGhost(e.touches[0]);
+    }, { passive: false });
+
+    box.addEventListener('touchmove', function(e) {
+      e.preventDefault();
+      if (activeItemType) {
+        moveGhost(e.touches[0]);
+      }
+    }, { passive: false });
+
+    box.addEventListener('touchend', function(e) {
+      if (!activeItemType) return;
+      ghost.style.display = 'none';
+      const touch = e.changedTouches[0];
+      checkDropOnCat(touch.clientX, touch.clientY, activeItemType);
+      activeItemType = null;
+    });
+  });
+
+  function moveGhost(touch) {
+    ghost.style.left = touch.clientX + 'px';
+    ghost.style.top = touch.clientY + 'px';
+  }
+
+  function checkDropOnCat(x, y, itemType) {
+    const catSlots = document.querySelectorAll('.room-cat-slot');
+    let hitCat = null;
+
+    catSlots.forEach(slot => {
+      const rect = slot.getBoundingClientRect();
+      if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+        hitCat = slot;
+      }
+    });
+
+    if (hitCat) {
+      const targetName = hitCat.dataset.catName;
+      hitCat.style.transform = 'scale(1.25) translateY(-15px)';
+      setTimeout(() => { hitCat.style.transform = 'scale(1) translateY(0)'; }, 400);
+
+      if (itemType === 'dish') {
+        document.getElementById('room-comment').textContent = `🥣 ${targetName}はお皿のカリカリを美味しそうに食べている！`;
+      } else if (itemType === 'fish') {
+        document.getElementById('room-comment').textContent = `🐟 ${targetName}はお魚に大興奮！「にゃーん！」と大喜び！`;
+      } else if (itemType === 'toy') {
+        document.getElementById('room-comment').textContent = `🧶 ${targetName}はおもちゃに夢中で飛びついて遊んでいる！`;
+      }
+    }
+  }
+
+  setInterval(function() {
+    if (!isRoomMode && document.getElementById('game-screen').style.display === 'block') {
+      affinity -= 3;
+      if (affinity <= 0) affinity = 0;
+      updateGame();
+    }
+  }, 3500);
+
+  function updateGame() {
+    document.getElementById('mood-text').textContent = '好感度： ' + affinity + ' / 100';
+    let img = document.getElementById('cat-img');
+    
+    if (affinity >= 75) {
+      document.getElementById('status-message').textContent = '💖 すっかり心を許して甘えている！あと少し！';
+      img.className = 'happy';
+    } else if (affinity >= 30) {
+      document.getElementById('status-message').textContent = '👀 こちらの様子をうかがっている…。';
+      img.className = '';
+    } else {
+      document.getElementById('status-message').textContent = '💢 シャーッ！完全に警戒されている…！';
+      img.className = 'angry';
+    }
+  }
+
+  function fullReset() {
+    adoptedCats = [];
+    affinity = 50;
+    isRoomMode = false;
+    document.getElementById('gameover-screen').style.display = 'none';
+    document.getElementById('room-screen').style.display = 'none';
+    document.getElementById('game-screen').style.display = 'none';
+    document.getElementById('select-screen').style.display = 'block';
+    document.getElementById('select-header').textContent = '野良猫の心を開こう';
+    document.getElementById('back-to-room-btn').style.display = 'none';
+  }
+</script>
+
+</body>
+</html>
